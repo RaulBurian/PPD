@@ -1,0 +1,63 @@
+
+Lab 10:
+
+DSM -> distributed shared memory 
+
+					A				B				C
+
+App layer 			=				=				=
+
+				set()	update()						
+
+
+Mid layer 			=				=				=
+
+
+					socket()
+
+
+OS					=				=				=
+
+
+
+					A												C
+
+				App	|	Mid					|					App	|	Mid
+					|						|						|
+					|						|						|
+				  set(c,5)		|			|						|
+					|			->			|			|		  set(C,10)
+					|						|		   <-			|
+					|						|						|
+					|						|						|
+				update(C,5)	 	<-			|						|
+					|						|						|
+				update(C,10)	<-			|			->		update(C,5)
+					|						|						|
+					|						|			->		update(C,10)
+					
+					
+Only subscribers can change the variable (we know the subscribers for each variable)
+
+We need to have a global image of the changes of the variables:
+
+A,5		A,C			C,D
+B,13	A,5			C,11
+A,12	A,12		D,14
+C,11	C,11
+D,14	A,2
+A,2
+
+
+
+P1,P2,P3, ... Pn => one is a counter
+
+
+set => send intent to those who need the set
+	=> after the response to the intent choose the timestamp to use for publish
+	=> send to upper level after we are sure that no publish with smaller timestamp will ever arrive
+
+compare and exchange => mid keeps track of the values
+					 => do the same with the intent and timestamp
+					 => success notification
+					

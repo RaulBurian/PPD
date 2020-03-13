@@ -1,0 +1,132 @@
+
+Polynomials with MPI:
+
+	P(X)*Q(X)
+	
+	P(x)=p0+p1X+....+p(n-1)x^(n-1)
+	n is a power of 2
+	Q(x)=q0+q1X+....+q(n-1)x^(n-1)
+	
+	P(X)=P0(X)+P1(X)*X^(n/2)
+		P0(X)=p0+p1X+....+p(n/2-1)x^(n/2-1)
+		P1(X)=(p(n/2)+p(n/2+1)X+...p(n-1)x^(n/2-1))
+	
+	Q(X)=Q0(X)+Q1(X)*X^(n/2)
+		Q0(X)=q0+q1X+....+q(n/2-1)x^(n/2-1)
+		Q1(X)=(q(n/2)+q(n/2+1)X+...q(n-1)x^(n/2-1))
+	
+	
+	P(X)*Q(X)=[ P0(X)+P1(X)*X^(n/2) ][ Q0(X)+Q1(X)*X^(n/2) ]
+			 =P0(X)*P1(X)+[ P0(X)Q1(X)+P1(X)Q0(X) ]X^(n/2)+P1(X)*Q1(X)*X^n
+	
+	Time:
+		T(2n)=4*T(n)+O(n)
+		....
+		=>O(n^log(2,4))=>O(n^2)
+	
+	R0(X)=P0(X)Q0(X)
+	R2(X)=P1(X)Q1(X)
+	R1(X)=[ P0(X)+P1(X) ][ Q0(X) + Q1(X) ] = P0(X)Q0(X) + P0(X)Q1(X) + P1(X)Q0(X) + P1(X)Q1(X)
+	P0(X)Q1(X) + P1(X)Q0(X)=R1(X)-R0(X)-R2(X)
+	
+	R(X)=R0(X)+[ R1(X) - R0(X) - R2(X) ]X^(n/2)+R2(X)^X^n
+	
+	Time:
+		=>O(n^log(2,3))=>GOOD
+
+Work on limited nr of threads:
+
+	void product(vector<int> const& p, vector<int> const& q,vector<int> const& r, int nrThreads){
+	
+		assert(p.size()==q.size());
+		
+		if(p.size()<...){
+			//compute directly
+		}
+		
+		if(nrThreads>=3){
+			//prepare p0,p1,q0,q1,p0+p1,q0+q1
+			future<void> f0=async(launch::deffered,[&](){
+				product(p0,q0,r0,nrThreads/3);
+			});
+			future<void> f0=async(launch::deffered,[&](){
+				product(p1,q1,r2,nrThreads/3);
+			});
+			product((p0+p1),(q0+q1),r1,nrThreads-2*nrThreads/3);
+			f0.wait();
+			f1.wait();
+		}
+		else if(nrThreads==1){
+			product(p0,q0,r0,1);
+			product(p1,q1,r2,1);
+			product((p0+p1),(q0+q1),r1);
+		}
+		else{
+			future<void> f=async(...); //one of the products
+			product(...);//one product
+			product(...);//another product
+			f.wait();
+		}
+	}
+	
+Now with MPI:
+
+	Use mostly the same recursive strategy but with some changes
+	We send the data to be computed on other remote nodes
+	We receive the computed data at the end
+
+	future -> send
+	
+	wait -> receive
+	
+	
+	send:
+		-size
+		-p,q (ex: p0,q0; p1,q1; ...)
+		-nr of procs remaining for the child node
+		
+	int metadata[2];// for each send
+	metadata[0]=p.size(); //p0.size()...
+	metadata[1]=nr of procs;//nrProcs1 or nrProcs2
+	int child=me+....;//child1 or child2
+	
+	child1=me+nrProcs/3;
+	child2=child1+nrProcs/3;
+	nrProcs1=child2-child1;
+	nrProcs2=me+nrProcs-child2;
+	nrProcs0=child1-me;
+	
+	
+	MPI_SSEND(metadata,2,MPI_INT,child,TAG_METADATA,MPI_COMM_WORLD);
+	
+	MPI_SSEND(p.size(),p.data(),MPI_INT,child1,TAG_P,MPI_COMM_WORLD);
+	
+	MPI_SSEND(q.size(),q.data(),MPI_INT,child2,TAG_P,MPI_COMM_WORLD);
+	
+	
+	recv:
+	
+	MPI_RECEIVE(r.size(),r.data(),MPI_INT,child,TAG_RESULT,MPI_COMM_WORLD, &status);
+		
+	worker starts by receiving the data:{
+		MPI_RECEIVE(metadata,2,MPI_INT,MPI_ANY_SENDER,TAG_METADATA,MPI_COMM_WORLD,&status);
+		
+		int parent=status.sender;
+		int size=metadata[0];
+		int nrProcs=metadata[1];
+	
+		vector<int> p(size),q(size);
+		vector<int> r;
+		
+		MPI_RECEIVE(p.size(),p.data(),MPI_INT,parent,TAG_P,MPI_COMM_WORLD,&status);
+		MPI_RECEIVE(q.size(),q.data(),MPI_INT,parent,TAG_P,MPI_COMM_WORLD,&status);
+		
+		product(p,q,r,nrProcs,me);
+		
+		MPI_SSEND(r.size(),r.data(),MPI_INT,parent,TAG_P,MPI_COMM_WORLD);
+	}
+	
+	!!TAG constants are defined by you (#define TAG_METADATA 1)
+
+
+	

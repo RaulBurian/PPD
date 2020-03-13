@@ -1,0 +1,47 @@
+
+recv(sd,buff,size,flags)	-> blocking
+							-> returns the size in nr of bytes received
+							
+
+server handling multiple clients:
+	- one thread per client:
+					-> void handleClient(int sd){
+										FILE *fin=fdopen(sd,"rt");
+										FILE *fout=fdopen(sd,"wt");
+										int a,b,read;
+										while(true){
+											read=fscanf(fin,"%d %d",&a,&b);
+											if(read!=2)
+												break;
+											fprintf(fout,"%d\n",a+b);
+											}
+										fclose(fin); //close only one of the file pointers because they point to the same sd
+										}
+					-> int main(){
+							int listeningSocket=Socket(...);
+							vector<thread> threads;
+							bind(...);
+							listen(...);
+							while(true){
+								int sd=accept(listeningSocket);
+								threads.emplace_back(handleClient,sd);
+							}
+						}
+	- use select:
+			-> select(...);
+	
+	
+	
+	- BeginReceive/EndReceive:
+			-> BeginReceive(...,callback);
+					-> callback will be called when the begin operation completes
+					-> in the callback we should call EndReceive
+					-> Begin(...)
+
+	
+	
+	
+	
+	
+	
+					

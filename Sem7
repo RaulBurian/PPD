@@ -1,0 +1,84 @@
+Revision:
+
+class ThreadPool{
+
+private:
+
+	vector<thread> threads;
+	list<function<void()>> workItems;
+	mutex mtx;
+	condition_variable cv;
+	condition_variable endCv;
+	bool active;
+	int inProgress;
+
+
+	void threadFunc(){
+		
+		while(true){
+		function<void()> func;
+		{
+			unique_lock<mutex> l(mtx);
+			while(workItems.empty() && active)
+				cv.wait(l);
+			if(workItems.empty()){
+				if(inProgress){
+					inProgress--;
+				}
+				else{
+					endCv.notify_one();
+				}
+				return;
+			}
+			else{
+				func=move(workItems.front());
+				workItems.pop_front();			
+			}
+
+		}
+		func();
+		}
+		
+	}
+
+
+public:
+
+	void enqueue(function<void()> f){
+	
+		unique_lock<mutex> l(mtx);
+		workItems.push_back(f);
+		cv.notify_one();
+	}
+	
+	ThreadPool(){
+	
+		for(int i=0;i<20;i++){
+		
+			threads.emplace_back(threadFunc,this);
+		
+		}
+		active=true;
+		inProgress=20;
+	}
+	
+	~ThreadPool(){
+	
+		unique_lock<mutex> l(mtx);
+		active=false;
+		cv.notify_all();
+		while(inProgress){
+			endCv.wait(l);
+		}
+		for(int i=0;i<20;i++){
+			threads[i].join();
+		}
+	}
+	
+}
+
+Sync problems:
+
+
+	enqueue -> need to notify
+	threadFunc -> execute while locked
